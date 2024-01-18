@@ -50,7 +50,7 @@ pub fn tree_move(c: &mut Criterion) {
     });
 
     b.bench_function("martin", |b| {
-        let mut tree = MovableTree::<EvanTree>::new(0);
+        let mut tree = MovableTree::<MartinTree>::new(0);
         let mut ids = vec![];
         let size = 1000;
         for _ in 0..size {
