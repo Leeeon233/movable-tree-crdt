@@ -14,8 +14,6 @@ struct EdgeCounter(u32);
 pub struct Node {
     id: NodeID,
     parent: Option<NodeID>,
-    // TODO: remove children
-    children: Vec<NodeID>,
     edges: HashMap<NodeID, EdgeCounter>,
 }
 
@@ -61,7 +59,6 @@ impl Default for EvanTree {
         let root = Node {
             id: ROOT_ID,
             parent: None,
-            children: Vec::new(),
             edges: HashMap::new(),
         };
         let mut nodes = HashMap::new();
@@ -80,7 +77,7 @@ impl EvanTree {
         // for a given node set to the most recent edge for that node.
         self.nodes.values_mut().for_each(|node| {
             node.parent = node.largest_edge();
-            node.children.clear();
+            // node.children.clear();
         });
         // At this point all nodes that can reach the root form a tree (by
         // construction, since each node other than the root has a single
@@ -151,18 +148,18 @@ impl EvanTree {
 
         // Add items as children of their parents so that the rest of the app
         // can easily traverse down the tree for drawing and hit-testing
-        for (id, parent) in self
-            .nodes
-            .values()
-            .map(|n| (n.id, n.parent))
-            .collect::<Vec<_>>()
-        {
-            if let Some(parent) = parent {
-                self.nodes.get_mut(&parent).unwrap().children.push(id);
-            }
-        }
+        // for (id, parent) in self
+        //     .nodes
+        //     .values()
+        //     .map(|n| (n.id, n.parent))
+        //     .collect::<Vec<_>>()
+        // {
+        //     if let Some(parent) = parent {
+        //         self.nodes.get_mut(&parent).unwrap().children.push(id);
+        //     }
+        // }
 
-        self.nodes.values_mut().for_each(|n| n.children.sort());
+        // self.nodes.values_mut().for_each(|n| n.children.sort());
     }
 
     pub fn is_under_other(&self, node: NodeID, other: NodeID) -> bool {
@@ -238,7 +235,7 @@ impl EvanTree {
         let child = self.nodes.entry(id.into()).or_insert_with(|| Node {
             id: id.into(),
             parent: None,
-            children: vec![],
+            // children: vec![],
             edges: HashMap::new(),
         });
         child.edges.insert(parent, EdgeCounter(0));

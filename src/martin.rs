@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{evan::ROOT_ID, MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ID};
+use crate::{MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ID};
 
 pub const CREATE_ROOT_ID: ID = ID {
     lamport: 0,
@@ -13,22 +13,11 @@ struct OpWrapper {
     old_parent: Option<NodeID>,
 }
 
-#[derive(Debug)]
-struct MartinTree {
+#[derive(Debug, Default)]
+pub struct MartinTree {
     tree: HashMap<NodeID, Option<NodeID>>,
     sorted_ops: Vec<OpWrapper>,
     applied_end: usize,
-}
-
-impl Default for MartinTree {
-    fn default() -> Self {
-        let mut tree = Self::new();
-        tree.apply(Op {
-            id: CREATE_ROOT_ID,
-            op: TreeOp::Create { parent: ROOT_ID },
-        });
-        tree
-    }
 }
 
 impl MartinTree {
@@ -45,6 +34,7 @@ impl MartinTree {
             let OpWrapper { op, old_parent } = &mut self.sorted_ops[i];
             match op.op {
                 TreeOp::Create { parent } => {
+                    self.tree.entry(parent).or_insert(None);
                     self.tree.insert(op.id.into(), Some(parent));
                 }
                 TreeOp::Move { target, parent } => {
@@ -91,6 +81,7 @@ impl MovableTreeAlgorithm for MartinTree {
         let mut ans = None;
         match op.op {
             TreeOp::Create { parent } => {
+                self.tree.entry(parent).or_insert(None);
                 self.tree.insert(op.id.into(), Some(parent));
                 ans = Some(op.id.into());
             }

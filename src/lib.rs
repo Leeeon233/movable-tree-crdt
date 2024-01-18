@@ -8,7 +8,7 @@ use crate::evan::ROOT_ID;
 pub mod evan;
 pub mod martin;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TreeNode {
     id: NodeID,
     children: Vec<TreeNode>,
@@ -25,7 +25,7 @@ impl TreeNode {
     }
 
     fn build_tree(node_id: NodeID, state: &HashMap<NodeID, Option<NodeID>>) -> TreeNode {
-        let children = state
+        let mut children = state
             .iter()
             .filter_map(|(id, parent)| {
                 if Some(node_id) == *parent {
@@ -34,8 +34,8 @@ impl TreeNode {
                     None
                 }
             })
-            .collect();
-
+            .collect::<Vec<_>>();
+        children.sort();
         TreeNode {
             id: node_id,
             children,
@@ -186,6 +186,7 @@ impl<T: MovableTreeAlgorithm> MovableTree<T> {
         self.algorithm.apply(op).unwrap()
     }
 
+    #[allow(clippy::result_unit_err)]
     pub fn mov(&mut self, target: NodeID, parent: NodeID) -> Result<(), ()> {
         if self.algorithm.is_ancestor_of(target, parent) {
             return Err(());
