@@ -14,6 +14,7 @@ struct EdgeCounter(u32);
 pub struct Node {
     id: NodeID,
     parent: Option<NodeID>,
+    // TODO: remove children
     children: Vec<NodeID>,
     edges: HashMap<NodeID, EdgeCounter>,
 }
@@ -87,7 +88,7 @@ impl EvanTree {
         // or more cycles. Gather all remaining nodes detached from the root.
         let mut non_rooted_nodes = HashSet::new();
         for node in self.nodes.values() {
-            if !self.is_under_other(node.id, self.root()) {
+            if !self.is_under_other(node.id, ROOT_ID) {
                 let mut node_id = Some(node.id);
                 while let Some(node) = node_id {
                     if !non_rooted_nodes.contains(&node) {
@@ -244,6 +245,21 @@ impl EvanTree {
         self.recompute_parent_children();
         id.into()
     }
+
+    // fn children(&self, node: NodeID) -> Vec<TreeNode> {
+    //     self.nodes
+    //         .get(&node)
+    //         .map(|n| {
+    //             n.children
+    //                 .iter()
+    //                 .map(|id| TreeNode {
+    //                     id: *id,
+    //                     children: self.children(*id),
+    //                 })
+    //                 .collect()
+    //         })
+    //         .unwrap_or_default()
+    // }
 }
 
 impl MovableTreeAlgorithm for EvanTree {
@@ -275,30 +291,9 @@ impl MovableTreeAlgorithm for EvanTree {
         self.nodes.get(&node).and_then(|n| n.parent)
     }
 
-    fn children(&self, node: NodeID) -> Vec<TreeNode> {
-        self.nodes
-            .get(&node)
-            .map(|n| {
-                n.children
-                    .iter()
-                    .map(|id| TreeNode {
-                        id: *id,
-                        children: self.children(*id),
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
-    }
-
-    fn root(&self) -> NodeID {
-        ROOT_ID
-    }
-
-    fn get_node(&self, node: NodeID) -> Option<TreeNode> {
-        self.nodes.get(&node).map(|n| TreeNode {
-            id: n.id,
-            children: self.children(node),
-        })
+    fn get_root(&self) -> TreeNode {
+        let state = self.nodes.iter().map(|(&k, v)| (k, v.parent)).collect();
+        TreeNode::from_state(&state)
     }
 }
 

@@ -6,11 +6,41 @@ use std::{
 use crate::evan::ROOT_ID;
 
 pub mod evan;
+pub mod martin;
 
 #[derive(Debug)]
 pub struct TreeNode {
     id: NodeID,
     children: Vec<TreeNode>,
+}
+
+impl TreeNode {
+    pub fn from_state(state: &HashMap<NodeID, Option<NodeID>>) -> TreeNode {
+        let root_id = state
+            .iter()
+            .find_map(|(id, parent)| if parent.is_none() { Some(*id) } else { None })
+            .expect("No root node found");
+
+        TreeNode::build_tree(root_id, state)
+    }
+
+    fn build_tree(node_id: NodeID, state: &HashMap<NodeID, Option<NodeID>>) -> TreeNode {
+        let children = state
+            .iter()
+            .filter_map(|(id, parent)| {
+                if Some(node_id) == *parent {
+                    Some(TreeNode::build_tree(*id, state))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        TreeNode {
+            id: node_id,
+            children,
+        }
+    }
 }
 
 impl Display for NodeID {
@@ -74,15 +104,50 @@ pub struct Op {
     op: TreeOp,
 }
 
+impl PartialEq for Op {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for Op {}
+
+impl Ord for Op {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl PartialOrd for Op {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.id.cmp(&other.id))
+    }
+}
+
 pub trait MovableTreeAlgorithm {
     fn new() -> Self;
     fn apply(&mut self, op: Op) -> Option<NodeID>;
     fn merge(&mut self, ops: Vec<Op>);
     fn nodes(&self) -> Vec<NodeID>;
     fn parent(&self, node: NodeID) -> Option<NodeID>;
-    fn children(&self, node: NodeID) -> Vec<TreeNode>;
-    fn root(&self) -> NodeID;
-    fn get_node(&self, node: NodeID) -> Option<TreeNode>;
+    fn get_root(&self) -> TreeNode;
+    fn is_ancestor_of(&self, maybe_ancestor: NodeID, mut node_id: NodeID) -> bool {
+        if maybe_ancestor == node_id {
+            return true;
+        }
+
+        loop {
+            let parent = self.parent(node_id);
+            match parent {
+                Some(parent_id) if parent_id == maybe_ancestor => return true,
+                Some(parent_id) if parent_id == node_id => panic!("loop detected"),
+                Some(parent_id) => {
+                    node_id = parent_id;
+                }
+                None => return false,
+            }
+        }
+    }
 }
 
 pub struct MovableTree<T> {
@@ -121,13 +186,17 @@ impl<T: MovableTreeAlgorithm> MovableTree<T> {
         self.algorithm.apply(op).unwrap()
     }
 
-    pub fn mov(&mut self, target: NodeID, parent: NodeID) {
+    pub fn mov(&mut self, target: NodeID, parent: NodeID) -> Result<(), ()> {
+        if self.algorithm.is_ancestor_of(target, parent) {
+            return Err(());
+        }
         let op = Op {
             id: self.new_id(),
             op: TreeOp::Move { target, parent },
         };
         self.ops.entry(self.peer).or_default().push(op);
         self.algorithm.apply(op);
+        Ok(())
     }
 
     pub fn merge(&mut self, other: &Self) {
@@ -147,10 +216,11 @@ impl<T: MovableTreeAlgorithm> MovableTree<T> {
         }
         self.algorithm.merge(ans);
     }
+}
 
-    pub fn to_string(&self) -> String {
-        let root = self.algorithm.root();
-        let root = self.algorithm.get_node(root).unwrap();
+impl<T: MovableTreeAlgorithm> ToString for MovableTree<T> {
+    fn to_string(&self) -> String {
+        let root = self.algorithm.get_root();
         root.to_string("".to_string(), true)
     }
 }
