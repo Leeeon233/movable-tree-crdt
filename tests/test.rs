@@ -1,14 +1,10 @@
-use movable_tree::{
-    evan::{EvanTree, ROOT_ID},
-    martin::MartinTree,
-    MovableTree,
-};
+use movable_tree::{evan::EvanTree, martin::MartinTree, MovableTree};
 
 #[test]
 fn tree() {
     let mut tree = MovableTree::<EvanTree>::new(0);
-    let child = tree.create(ROOT_ID);
-    let child2 = tree.create(ROOT_ID);
+    let child = tree.create(None);
+    let child2 = tree.create(None);
     let mut tree2 = MovableTree::<EvanTree>::new(1);
     tree2.merge(&tree);
     tree.mov(child2, child).unwrap();
@@ -22,8 +18,8 @@ fn tree() {
 #[test]
 fn tree2() {
     let mut tree = MovableTree::<MartinTree>::new(0);
-    let child = tree.create(ROOT_ID);
-    let child2 = tree.create(ROOT_ID);
+    let child = tree.create(None);
+    let child2 = tree.create(None);
     let mut tree2 = MovableTree::<MartinTree>::new(1);
     tree2.merge(&tree);
     tree.mov(child2, child).unwrap();

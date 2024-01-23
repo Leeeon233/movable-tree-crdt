@@ -1,11 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ID};
-
-pub const CREATE_ROOT_ID: ID = ID {
-    lamport: 0,
-    peer: 0,
-};
+use crate::{MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ID, ROOT_ID};
 
 #[derive(Debug)]
 struct OpWrapper {
@@ -13,11 +8,23 @@ struct OpWrapper {
     old_parent: Option<NodeID>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MartinTree {
     tree: HashMap<NodeID, Option<NodeID>>,
     sorted_ops: Vec<OpWrapper>,
     applied_end: usize,
+}
+
+impl Default for MartinTree {
+    fn default() -> Self {
+        let mut tree = HashMap::new();
+        tree.insert(ROOT_ID, None);
+        Self {
+            tree,
+            sorted_ops: Vec::new(),
+            applied_end: 0,
+        }
+    }
 }
 
 impl MartinTree {
@@ -76,14 +83,12 @@ impl MovableTreeAlgorithm for MartinTree {
         Self::default()
     }
 
-    fn apply(&mut self, op: crate::Op) -> Option<NodeID> {
+    fn apply(&mut self, op: crate::Op, _local: bool) {
         let mut old_parent = None;
-        let mut ans = None;
         match op.op {
             TreeOp::Create { parent } => {
                 self.tree.entry(parent).or_insert(None);
                 self.tree.insert(op.id.into(), Some(parent));
-                ans = Some(op.id.into());
             }
             TreeOp::Move { target, parent } => {
                 old_parent = self.tree.get(&target).copied().flatten();
@@ -92,7 +97,6 @@ impl MovableTreeAlgorithm for MartinTree {
         };
         self.sorted_ops.push(OpWrapper { op, old_parent });
         self.applied_end = self.sorted_ops.len();
-        ans
     }
 
     fn merge(&mut self, mut ops: Vec<crate::Op>) {

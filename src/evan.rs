@@ -1,11 +1,6 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
-use crate::{MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ID};
-
-pub const ROOT_ID: NodeID = NodeID {
-    lamport: u32::MAX,
-    peer: u64::MAX,
-};
+use crate::{MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ID, ROOT_ID};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct EdgeCounter(u32);
@@ -85,7 +80,7 @@ impl EvanTree {
         // or more cycles. Gather all remaining nodes detached from the root.
         let mut non_rooted_nodes = HashSet::new();
         for node in self.nodes.values() {
-            if !self.is_under_other(node.id, ROOT_ID) {
+            if !non_rooted_nodes.contains(&node.id) && !self.is_under_other(node.id, ROOT_ID) {
                 let mut node_id = Some(node.id);
                 while let Some(node) = node_id {
                     if !non_rooted_nodes.contains(&node) {
@@ -231,16 +226,14 @@ impl EvanTree {
         }
     }
 
-    fn create(&mut self, id: ID, parent: NodeID) -> NodeID {
+    fn create(&mut self, id: ID, parent: NodeID) {
         let child = self.nodes.entry(id.into()).or_insert_with(|| Node {
             id: id.into(),
-            parent: None,
+            parent: Some(parent),
             // children: vec![],
             edges: HashMap::new(),
         });
         child.edges.insert(parent, EdgeCounter(0));
-        self.recompute_parent_children();
-        id.into()
     }
 
     // fn children(&self, node: NodeID) -> Vec<TreeNode> {
@@ -264,20 +257,25 @@ impl MovableTreeAlgorithm for EvanTree {
         Self::new()
     }
 
-    fn apply(&mut self, op: Op) -> Option<NodeID> {
+    fn apply(&mut self, op: Op, local: bool) {
         match op.op {
-            TreeOp::Create { parent } => Some(self.create(op.id, parent)),
+            TreeOp::Create { parent } => {
+                self.create(op.id, parent);
+            }
             TreeOp::Move { target, parent } => {
                 self.mov(target, parent);
-                None
+                if local {
+                    self.recompute_parent_children();
+                }
             }
-        }
+        };
     }
 
     fn merge(&mut self, ops: Vec<Op>) {
         for op in ops {
-            self.apply(op);
+            self.apply(op, false);
         }
+        self.recompute_parent_children();
     }
 
     fn nodes(&self) -> Vec<NodeID> {
@@ -291,31 +289,5 @@ impl MovableTreeAlgorithm for EvanTree {
     fn get_root(&self) -> TreeNode {
         let state = self.nodes.iter().map(|(&k, v)| (k, v.parent)).collect();
         TreeNode::from_state(&state)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::*;
-    #[test]
-    fn test() {
-        let mut tree = EvanTree::new();
-        let child = tree.create(
-            ID {
-                lamport: 0,
-                peer: 0,
-            },
-            ROOT_ID,
-        );
-        let child2 = tree.create(
-            ID {
-                lamport: 1,
-                peer: 0,
-            },
-            ROOT_ID,
-        );
-        tree.mov(child, child2);
-        println!("{:?}", tree.nodes())
     }
 }

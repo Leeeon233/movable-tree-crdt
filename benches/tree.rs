@@ -1,9 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use movable_tree::{
-    evan::{EvanTree, ROOT_ID},
-    martin::MartinTree,
-    MovableTree,
-};
+use movable_tree::{evan::EvanTree, martin::MartinTree, MovableTree};
 use rand::{rngs::StdRng, Rng};
 
 pub fn tree_move(c: &mut Criterion) {
@@ -14,7 +10,7 @@ pub fn tree_move(c: &mut Criterion) {
         let mut tree = MovableTree::<EvanTree>::new(0);
         b.iter(|| {
             for _ in 0..size {
-                tree.create(ROOT_ID);
+                tree.create(None);
             }
         })
     });
@@ -23,7 +19,7 @@ pub fn tree_move(c: &mut Criterion) {
         let mut tree = MovableTree::<MartinTree>::new(0);
         b.iter(|| {
             for _ in 0..size {
-                tree.create(ROOT_ID);
+                tree.create(None);
             }
         })
     });
@@ -36,7 +32,7 @@ pub fn tree_move(c: &mut Criterion) {
         let mut ids = vec![];
         let size = 1000;
         for _ in 0..size {
-            ids.push(tree.create(ROOT_ID));
+            ids.push(tree.create(None));
         }
         let mut rng: StdRng = rand::SeedableRng::seed_from_u64(0);
         let n = 10000;
@@ -54,7 +50,7 @@ pub fn tree_move(c: &mut Criterion) {
         let mut ids = vec![];
         let size = 1000;
         for _ in 0..size {
-            ids.push(tree.create(ROOT_ID));
+            ids.push(tree.create(None));
         }
         let mut rng: StdRng = rand::SeedableRng::seed_from_u64(0);
         let n = 10000;

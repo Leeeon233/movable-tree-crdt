@@ -2,11 +2,15 @@ use std::{
     collections::HashMap,
     fmt::{Display, Formatter},
 };
-
-use crate::evan::ROOT_ID;
-
 pub mod evan;
+#[cfg(feature = "fuzz")]
+pub mod fuzz;
 pub mod martin;
+
+pub const ROOT_ID: NodeID = NodeID {
+    lamport: u32::MAX,
+    peer: u64::MAX,
+};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TreeNode {
@@ -126,7 +130,7 @@ impl PartialOrd for Op {
 
 pub trait MovableTreeAlgorithm {
     fn new() -> Self;
-    fn apply(&mut self, op: Op) -> Option<NodeID>;
+    fn apply(&mut self, op: Op, local: bool);
     fn merge(&mut self, ops: Vec<Op>);
     fn nodes(&self) -> Vec<NodeID>;
     fn parent(&self, node: NodeID) -> Option<NodeID>;
@@ -176,14 +180,16 @@ impl<T: MovableTreeAlgorithm> MovableTree<T> {
         id
     }
 
-    pub fn create(&mut self, parent: NodeID) -> NodeID {
+    pub fn create(&mut self, parent: Option<NodeID>) -> NodeID {
+        let parent = parent.unwrap_or(ROOT_ID);
         let id = self.new_id();
         let op = Op {
             id,
             op: TreeOp::Create { parent },
         };
         self.ops.entry(self.peer).or_default().push(op);
-        self.algorithm.apply(op).unwrap()
+        self.algorithm.apply(op, true);
+        id.into()
     }
 
     #[allow(clippy::result_unit_err)]
@@ -196,7 +202,7 @@ impl<T: MovableTreeAlgorithm> MovableTree<T> {
             op: TreeOp::Move { target, parent },
         };
         self.ops.entry(self.peer).or_default().push(op);
-        self.algorithm.apply(op);
+        self.algorithm.apply(op, true);
         Ok(())
     }
 
@@ -217,6 +223,14 @@ impl<T: MovableTreeAlgorithm> MovableTree<T> {
         }
         self.algorithm.merge(ans);
     }
+
+    pub fn nodes(&self) -> Vec<NodeID> {
+        self.algorithm
+            .nodes()
+            .into_iter()
+            .filter(|n| *n != ROOT_ID)
+            .collect()
+    }
 }
 
 impl<T: MovableTreeAlgorithm> ToString for MovableTree<T> {
@@ -224,4 +238,44 @@ impl<T: MovableTreeAlgorithm> ToString for MovableTree<T> {
         let root = self.algorithm.get_root();
         root.to_string("".to_string(), true)
     }
+}
+
+#[macro_export]
+macro_rules! array_mut_ref {
+    ($arr:expr, [$a0:expr, $a1:expr]) => {{
+        #[inline]
+        fn borrow_mut_ref<T>(arr: &mut [T], a0: usize, a1: usize) -> (&mut T, &mut T) {
+            assert!(a0 != a1);
+            // SAFETY: this is safe because we know a0 != a1
+            unsafe {
+                (
+                    &mut *(&mut arr[a0] as *mut _),
+                    &mut *(&mut arr[a1] as *mut _),
+                )
+            }
+        }
+
+        borrow_mut_ref($arr, $a0, $a1)
+    }};
+    ($arr:expr, [$a0:expr, $a1:expr, $a2:expr]) => {{
+        #[inline]
+        fn borrow_mut_ref<T>(
+            arr: &mut [T],
+            a0: usize,
+            a1: usize,
+            a2: usize,
+        ) -> (&mut T, &mut T, &mut T) {
+            assert!(a0 != a1 && a1 != a2 && a0 != a2);
+            // SAFETY: this is safe because we know there are not multiple mutable references to the same element
+            unsafe {
+                (
+                    &mut *(&mut arr[a0] as *mut _),
+                    &mut *(&mut arr[a1] as *mut _),
+                    &mut *(&mut arr[a2] as *mut _),
+                )
+            }
+        }
+
+        borrow_mut_ref($arr, $a0, $a1, $a2)
+    }};
 }

@@ -6,10 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+arbitrary = { version = "1", optional = true, features = ["derive"] }
+enum-as-inner = { version = "0.6", optional = true }
 
 [dev-dependencies]
 criterion = "0.5.0"
 rand = "0.8"
+
+[features]
+default = ["fuzz"]
+fuzz = ["arbitrary", "enum-as-inner"]
+
 
 [[bench]]
 name = "tree"
