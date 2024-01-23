@@ -140,21 +140,6 @@ impl EvanTree {
                 }
             }
         }
-
-        // Add items as children of their parents so that the rest of the app
-        // can easily traverse down the tree for drawing and hit-testing
-        // for (id, parent) in self
-        //     .nodes
-        //     .values()
-        //     .map(|n| (n.id, n.parent))
-        //     .collect::<Vec<_>>()
-        // {
-        //     if let Some(parent) = parent {
-        //         self.nodes.get_mut(&parent).unwrap().children.push(id);
-        //     }
-        // }
-
-        // self.nodes.values_mut().for_each(|n| n.children.sort());
     }
 
     pub fn is_under_other(&self, node: NodeID, other: NodeID) -> bool {
@@ -162,23 +147,19 @@ impl EvanTree {
             return true;
         }
         let mut tortoise = node;
-        let mut hare = self.parent_node(node);
-        while hare.is_some() && hare.unwrap().id != other {
-            if tortoise == hare.unwrap().id {
+        let mut hare = self.parent(node);
+        while hare.is_some() && hare.unwrap() != other {
+            if tortoise == hare.unwrap() {
                 return false;
             }
-            hare = hare.unwrap().parent.and_then(|id| self.nodes.get(&id));
-            if hare.is_none() || hare.unwrap().id == other {
+            hare = self.parent(hare.unwrap());
+            if hare.is_none() || hare.unwrap() == other {
                 break;
             }
-            tortoise = self.nodes.get(&tortoise).unwrap().parent.unwrap();
-            hare = hare.unwrap().parent.and_then(|id| self.nodes.get(&id));
+            tortoise = self.parent(tortoise).unwrap();
+            hare = self.parent(hare.unwrap());
         }
-        hare.map(|n| n.id) == Some(other)
-    }
-
-    fn parent_node(&self, node: NodeID) -> Option<&Node> {
-        self.parent(node).and_then(|id| self.nodes.get(&id))
+        hare == Some(other)
     }
 
     fn ensure_node_is_rooted(
@@ -222,8 +203,8 @@ impl EvanTree {
                 .unwrap()
                 .edges
                 .insert(parent, EdgeCounter((max_counter + 1) as u32));
-            self.recompute_parent_children();
         }
+        self.recompute_parent_children();
     }
 
     fn create(&mut self, id: ID, parent: NodeID) {
@@ -235,21 +216,6 @@ impl EvanTree {
         });
         child.edges.insert(parent, EdgeCounter(0));
     }
-
-    // fn children(&self, node: NodeID) -> Vec<TreeNode> {
-    //     self.nodes
-    //         .get(&node)
-    //         .map(|n| {
-    //             n.children
-    //                 .iter()
-    //                 .map(|id| TreeNode {
-    //                     id: *id,
-    //                     children: self.children(*id),
-    //                 })
-    //                 .collect()
-    //         })
-    //         .unwrap_or_default()
-    // }
 }
 
 impl MovableTreeAlgorithm for EvanTree {
@@ -264,9 +230,6 @@ impl MovableTreeAlgorithm for EvanTree {
             }
             TreeOp::Move { target, parent } => {
                 self.mov(target, parent);
-                if local {
-                    self.recompute_parent_children();
-                }
             }
         };
     }
@@ -275,7 +238,6 @@ impl MovableTreeAlgorithm for EvanTree {
         for op in ops {
             self.apply(op, false);
         }
-        self.recompute_parent_children();
     }
 
     fn nodes(&self) -> Vec<NodeID> {

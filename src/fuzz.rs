@@ -96,7 +96,7 @@ impl CRDTFuzzer {
                 assert_eq!(a.evan_tree.to_string(), b.evan_tree.to_string());
             }
         }
-        println!("{}", self.actors[0].martin_tree.to_string());
+        // println!("{}", self.actors[0].martin_tree.to_string());
     }
 }
 
