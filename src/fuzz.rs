@@ -165,9 +165,12 @@ impl Actor {
             } => {
                 let target = *self.martin_tree.nodes().get(target as usize).unwrap();
                 let parent = *self.martin_tree.nodes().get(parent as usize).unwrap();
-                if self.martin_tree.mov(target, parent).is_err() {
+                if self.martin_tree.is_ancestor_of(target, parent)
+                    || self.evan_tree.is_ancestor_of(target, parent)
+                {
                     return;
-                };
+                }
+                self.martin_tree.mov(target, parent).unwrap();
                 self.evan_tree.mov(target, parent).unwrap();
             }
             _ => {}
@@ -177,10 +180,13 @@ impl Actor {
 
 pub fn fuzz_tree(site: usize, actions: &mut [Action]) {
     let mut fuzzer = CRDTFuzzer::new(site);
+    let mut applied = Vec::new();
     for action in actions {
         fuzzer.pre_process(action);
+        applied.push(*action);
         fuzzer.apply(*action);
     }
+    // println!("{:?}", applied);
     fuzzer.check_eq();
 }
 
@@ -217,18 +223,29 @@ mod test {
         fuzz_tree(
             5,
             &mut [
+                Create { site: 4, parent: 0 },
+                Create { site: 4, parent: 0 },
+                Create { site: 3, parent: 0 },
+                Create { site: 3, parent: 0 },
+                Create { site: 2, parent: 0 },
+                Create { site: 2, parent: 0 },
+                Create { site: 1, parent: 0 },
+                Create { site: 1, parent: 0 },
+                Create { site: 0, parent: 0 },
+                Create { site: 0, parent: 0 },
                 Sync,
-                Sync,
-                Sync,
-                Create {
-                    site: 255,
-                    parent: 0,
+                Move {
+                    site: 5,
+                    target: 6,
+                    parent: 7,
                 },
                 Move {
-                    site: 0,
-                    target: 0,
-                    parent: 0,
+                    site: 5,
+                    target: 5,
+                    parent: 6,
                 },
+                Sync,
+                Create { site: 5, parent: 0 },
             ],
         )
     }

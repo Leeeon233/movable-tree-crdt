@@ -1,24 +1,19 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
-use crate::{MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ID, ROOT_ID};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct EdgeCounter(u32);
+use crate::{MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ROOT_ID};
 
 #[derive(Debug, Clone)]
 pub struct Node {
     id: NodeID,
     parent: Option<NodeID>,
-    edges: HashMap<NodeID, EdgeCounter>,
+    edges: HashMap<NodeID, u32>,
 }
 
 impl Node {
     pub fn largest_edge(&self) -> Option<NodeID> {
         self.edges
             .iter()
-            .max_by(|(a_id, EdgeCounter(a_c)), (b_id, EdgeCounter(b_c))| {
-                a_c.cmp(b_c).then_with(|| a_id.cmp(b_id))
-            })
+            .max_by(|(a_id, a_c), (b_id, b_c)| a_c.cmp(b_c).then_with(|| a_id.cmp(b_id)))
             .map(|(id, _)| *id)
     }
 }
@@ -31,7 +26,7 @@ pub struct EvanTree {
 struct PQItem {
     child: NodeID,
     parent: NodeID,
-    counter: EdgeCounter,
+    counter: u32,
 }
 
 impl PartialOrd for PQItem {
@@ -179,43 +174,6 @@ impl EvanTree {
             node = parent;
         }
     }
-
-    fn mov(&mut self, target: NodeID, parent: NodeID) {
-        let child = target;
-        let mut edits = vec![];
-        let old_parent = self.parent(child);
-        self.ensure_node_is_rooted(old_parent, &mut edits);
-        self.ensure_node_is_rooted(Some(parent), &mut edits);
-        edits.push((child, parent));
-
-        for (child, parent) in edits {
-            let max_counter = self
-                .nodes
-                .get(&child)
-                .unwrap()
-                .edges
-                .values()
-                .map(|c| c.0 as i64)
-                .max()
-                .unwrap_or(-1);
-            self.nodes
-                .get_mut(&child)
-                .unwrap()
-                .edges
-                .insert(parent, EdgeCounter((max_counter + 1) as u32));
-        }
-        self.recompute_parent_children();
-    }
-
-    fn create(&mut self, id: ID, parent: NodeID) {
-        let child = self.nodes.entry(id.into()).or_insert_with(|| Node {
-            id: id.into(),
-            parent: Some(parent),
-            // children: vec![],
-            edges: HashMap::new(),
-        });
-        child.edges.insert(parent, EdgeCounter(0));
-    }
 }
 
 impl MovableTreeAlgorithm for EvanTree {
@@ -223,21 +181,76 @@ impl MovableTreeAlgorithm for EvanTree {
         Self::new()
     }
 
-    fn apply(&mut self, op: Op, local: bool) {
+    fn apply(&mut self, op: Op, local: bool) -> Vec<Op> {
+        let id = op.id;
         match op.op {
             TreeOp::Create { parent } => {
-                self.create(op.id, parent);
+                let child = self.nodes.entry(id.into()).or_insert_with(|| Node {
+                    id: id.into(),
+                    parent: Some(parent),
+                    // children: vec![],
+                    edges: HashMap::new(),
+                });
+                child.edges.insert(parent, 0);
+                vec![op]
             }
-            TreeOp::Move { target, parent } => {
-                self.mov(target, parent);
+            TreeOp::Move {
+                target,
+                parent,
+                counter,
+            } => {
+                if local {
+                    let child = target;
+                    let mut edits = vec![];
+                    let old_parent = self.parent(child);
+                    self.ensure_node_is_rooted(old_parent, &mut edits);
+                    self.ensure_node_is_rooted(Some(parent), &mut edits);
+                    edits.push((child, parent));
+                    let mut ans = Vec::with_capacity(edits.len());
+                    for (child, parent) in edits {
+                        let max_counter = self
+                            .nodes
+                            .get(&child)
+                            .unwrap()
+                            .edges
+                            .values()
+                            .map(|c| *c as i64)
+                            .max()
+                            .unwrap_or(-1);
+                        self.nodes
+                            .get_mut(&child)
+                            .unwrap()
+                            .edges
+                            .insert(parent, (max_counter + 1) as u32);
+                        ans.push(Op {
+                            id,
+                            op: TreeOp::Move {
+                                target,
+                                parent,
+                                counter: (max_counter + 1) as u32,
+                            },
+                        })
+                    }
+                    self.recompute_parent_children();
+                    ans
+                } else {
+                    let child = target;
+                    self.nodes
+                        .get_mut(&child)
+                        .unwrap()
+                        .edges
+                        .insert(parent, counter);
+                    vec![]
+                }
             }
-        };
+        }
     }
 
     fn merge(&mut self, ops: Vec<Op>) {
         for op in ops {
             self.apply(op, false);
         }
+        self.recompute_parent_children()
     }
 
     fn nodes(&self) -> Vec<NodeID> {

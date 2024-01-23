@@ -5,10 +5,11 @@ fn tree() {
     let mut tree = MovableTree::<EvanTree>::new(0);
     let child = tree.create(None);
     let child2 = tree.create(None);
+    let child3 = tree.create(None);
     let mut tree2 = MovableTree::<EvanTree>::new(1);
     tree2.merge(&tree);
-    tree.mov(child2, child).unwrap();
-    tree2.mov(child, child2).unwrap();
+    tree.mov(child, child2).unwrap();
+    tree2.mov(child, child3).unwrap();
 
     tree.merge(&tree2);
     tree2.merge(&tree);

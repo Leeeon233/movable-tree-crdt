@@ -65,43 +65,61 @@ pub fn tree_move(c: &mut Criterion) {
 
     b.finish();
 
-    // b.bench_function("realtime tree move", |b| {
-    //     let doc_a = LoroDoc::default();
-    //     let doc_b = LoroDoc::default();
-    //     let tree_a = doc_a.get_tree("tree");
-    //     let tree_b = doc_b.get_tree("tree");
-    //     let mut ids = vec![];
-    //     let size = 1000;
-    //     for _ in 0..size {
-    //         ids.push(
-    //             doc_a
-    //                 .with_txn(|txn| tree_a.create_with_txn(txn, None))
-    //                 .unwrap(),
-    //         )
-    //     }
-    //     doc_b.import(&doc_a.export_snapshot()).unwrap();
-    //     let mut rng: StdRng = rand::SeedableRng::seed_from_u64(0);
-    //     let n = 1000;
-    //     b.iter(|| {
-    //         for t in 0..n {
-    //             let i = rng.gen::<usize>() % size;
-    //             let j = rng.gen::<usize>() % size;
-    //             if t % 2 == 0 {
-    //                 let mut txn = doc_a.txn().unwrap();
-    //                 tree_a
-    //                     .mov_with_txn(&mut txn, ids[i], ids[j])
-    //                     .unwrap_or_default();
-    //                 doc_b.import(&doc_a.export_from(&doc_b.oplog_vv())).unwrap();
-    //             } else {
-    //                 let mut txn = doc_b.txn().unwrap();
-    //                 tree_b
-    //                     .mov_with_txn(&mut txn, ids[i], ids[j])
-    //                     .unwrap_or_default();
-    //                 doc_a.import(&doc_b.export_from(&doc_a.oplog_vv())).unwrap();
-    //             }
-    //         }
-    //     })
-    // });
+    let mut b = c.benchmark_group("realtime tree move");
+    b.sample_size(10);
+    b.bench_function("evan", |b| {
+        let mut tree_a = MovableTree::<EvanTree>::new(0);
+        let mut tree_b = MovableTree::<EvanTree>::new(1);
+        let mut ids = vec![];
+        let size = 1000;
+        for _ in 0..size {
+            ids.push(tree_a.create(None));
+        }
+        tree_b.merge(&tree_a);
+        let mut rng: StdRng = rand::SeedableRng::seed_from_u64(0);
+        let n = 100;
+        b.iter(|| {
+            for t in 0..n {
+                let i = rng.gen::<usize>() % size;
+                let j = rng.gen::<usize>() % size;
+                if t % 2 == 0 {
+                    tree_a.mov(ids[i], ids[j]).unwrap_or_default();
+                    tree_b.merge(&tree_a);
+                } else {
+                    tree_b.mov(ids[i], ids[j]).unwrap_or_default();
+                    tree_a.merge(&tree_b);
+                }
+            }
+        })
+    });
+
+    b.bench_function("martin", |b| {
+        let mut tree_a = MovableTree::<MartinTree>::new(0);
+        let mut tree_b = MovableTree::<MartinTree>::new(1);
+        let mut ids = vec![];
+        let size = 100;
+        for _ in 0..size {
+            ids.push(tree_a.create(None));
+        }
+        tree_b.merge(&tree_a);
+        let mut rng: StdRng = rand::SeedableRng::seed_from_u64(0);
+        let n = 1000;
+        b.iter(|| {
+            for t in 0..n {
+                let i = rng.gen::<usize>() % size;
+                let j = rng.gen::<usize>() % size;
+                if t % 2 == 0 {
+                    tree_a.mov(ids[i], ids[j]).unwrap_or_default();
+                    tree_b.merge(&tree_a);
+                } else {
+                    tree_b.mov(ids[i], ids[j]).unwrap_or_default();
+                    tree_a.merge(&tree_b);
+                }
+            }
+        })
+    });
+
+    b.finish();
 }
 
 criterion_group!(benches, tree_move);

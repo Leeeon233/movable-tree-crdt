@@ -98,8 +98,14 @@ impl From<ID> for NodeID {
 
 #[derive(Debug, Clone, Copy)]
 pub enum TreeOp {
-    Create { parent: NodeID },
-    Move { target: NodeID, parent: NodeID },
+    Create {
+        parent: NodeID,
+    },
+    Move {
+        target: NodeID,
+        parent: NodeID,
+        counter: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -130,7 +136,8 @@ impl PartialOrd for Op {
 
 pub trait MovableTreeAlgorithm {
     fn new() -> Self;
-    fn apply(&mut self, op: Op, local: bool);
+    // return ops for evan's algorithm
+    fn apply(&mut self, op: Op, local: bool) -> Vec<Op>;
     fn merge(&mut self, ops: Vec<Op>);
     fn nodes(&self) -> Vec<NodeID>;
     fn parent(&self, node: NodeID) -> Option<NodeID>;
@@ -199,10 +206,14 @@ impl<T: MovableTreeAlgorithm> MovableTree<T> {
         }
         let op = Op {
             id: self.new_id(),
-            op: TreeOp::Move { target, parent },
+            op: TreeOp::Move {
+                target,
+                parent,
+                counter: 0,
+            },
         };
-        self.ops.entry(self.peer).or_default().push(op);
-        self.algorithm.apply(op, true);
+        let ops = self.algorithm.apply(op, true);
+        self.ops.entry(self.peer).or_default().extend(ops);
         Ok(())
     }
 
@@ -230,6 +241,10 @@ impl<T: MovableTreeAlgorithm> MovableTree<T> {
             .into_iter()
             .filter(|n| *n != ROOT_ID)
             .collect()
+    }
+
+    pub fn is_ancestor_of(&self, target: NodeID, parent: NodeID) -> bool {
+        self.algorithm.is_ancestor_of(target, parent)
     }
 }
 

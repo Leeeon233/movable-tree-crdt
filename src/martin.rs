@@ -44,7 +44,7 @@ impl MartinTree {
                     self.tree.entry(parent).or_insert(None);
                     self.tree.insert(op.id.into(), Some(parent));
                 }
-                TreeOp::Move { target, parent } => {
+                TreeOp::Move { target, parent, .. } => {
                     *old_parent = self.tree.get(&target).copied().flatten();
                     self.mov(target, parent);
                 }
@@ -83,20 +83,21 @@ impl MovableTreeAlgorithm for MartinTree {
         Self::default()
     }
 
-    fn apply(&mut self, op: crate::Op, _local: bool) {
+    fn apply(&mut self, op: crate::Op, _local: bool) -> Vec<Op> {
         let mut old_parent = None;
         match op.op {
             TreeOp::Create { parent } => {
                 self.tree.entry(parent).or_insert(None);
                 self.tree.insert(op.id.into(), Some(parent));
             }
-            TreeOp::Move { target, parent } => {
+            TreeOp::Move { target, parent, .. } => {
                 old_parent = self.tree.get(&target).copied().flatten();
                 self.mov(target, parent);
             }
         };
         self.sorted_ops.push(OpWrapper { op, old_parent });
         self.applied_end = self.sorted_ops.len();
+        vec![op]
     }
 
     fn merge(&mut self, mut ops: Vec<crate::Op>) {
