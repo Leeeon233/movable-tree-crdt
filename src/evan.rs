@@ -1,25 +1,38 @@
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use fxhash::{FxHashMap, FxHashSet};
+use std::collections::{hash_map::Entry, BinaryHeap};
 
 use crate::{MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ROOT_ID};
+
+#[derive(Debug, Clone, Copy)]
+struct EdgeCounter {
+    counter: u32,
+    lamport: u32,
+    peer: u64,
+}
 
 #[derive(Debug, Clone)]
 pub struct Node {
     id: NodeID,
     parent: Option<NodeID>,
-    edges: HashMap<NodeID, u32>,
+    edges: FxHashMap<NodeID, EdgeCounter>,
 }
 
 impl Node {
     pub fn largest_edge(&self) -> Option<NodeID> {
         self.edges
             .iter()
-            .max_by(|(a_id, a_c), (b_id, b_c)| a_c.cmp(b_c).then_with(|| a_id.cmp(b_id)))
+            .max_by(
+                |(a_id, EdgeCounter { counter: a_c, .. }),
+                 (b_id, EdgeCounter { counter: b_c, .. })| {
+                    a_c.cmp(b_c).then_with(|| a_id.cmp(b_id))
+                },
+            )
             .map(|(id, _)| *id)
     }
 }
 
 pub struct EvanTree {
-    nodes: HashMap<NodeID, Node>,
+    pub nodes: FxHashMap<NodeID, Node>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,9 +62,9 @@ impl Default for EvanTree {
         let root = Node {
             id: ROOT_ID,
             parent: None,
-            edges: HashMap::new(),
+            edges: FxHashMap::default(),
         };
-        let mut nodes = HashMap::new();
+        let mut nodes = FxHashMap::default();
         nodes.insert(root.id, root);
         EvanTree { nodes }
     }
@@ -73,7 +86,7 @@ impl EvanTree {
         // construction, since each node other than the root has a single
         // parent). The parent pointers for the remaining nodes may form one
         // or more cycles. Gather all remaining nodes detached from the root.
-        let mut non_rooted_nodes = HashSet::new();
+        let mut non_rooted_nodes = FxHashSet::default();
         for node in self.nodes.values() {
             if !non_rooted_nodes.contains(&node.id) && !self.is_under_other(node.id, ROOT_ID) {
                 let mut node_id = Some(node.id);
@@ -95,7 +108,7 @@ impl EvanTree {
             // All "ready" edges already have the parent connected to the root,
             // and all "deferred" edges have a parent not yet connected to the
             // root. Prioritize newer edges over older edges using the counter.
-            let mut deferred_edges = HashMap::new();
+            let mut deferred_edges = FxHashMap::default();
             let mut ready_edges = BinaryHeap::new();
             for &child in non_rooted_nodes.iter() {
                 for (&parent, &counter) in self.nodes.get(&child).unwrap().edges.iter() {
@@ -103,7 +116,7 @@ impl EvanTree {
                         ready_edges.push(PQItem {
                             child,
                             parent,
-                            counter,
+                            counter: counter.counter,
                         });
                     } else {
                         deferred_edges
@@ -112,7 +125,7 @@ impl EvanTree {
                             .push(PQItem {
                                 child,
                                 parent,
-                                counter,
+                                counter: counter.counter,
                             });
                     }
                 }
@@ -189,9 +202,16 @@ impl MovableTreeAlgorithm for EvanTree {
                     id: id.into(),
                     parent: Some(parent),
                     // children: vec![],
-                    edges: HashMap::new(),
+                    edges: FxHashMap::default(),
                 });
-                child.edges.insert(parent, 0);
+                child.edges.insert(
+                    parent,
+                    EdgeCounter {
+                        counter: 0,
+                        lamport: id.lamport,
+                        peer: id.peer,
+                    },
+                );
                 vec![op]
             }
             TreeOp::Move {
@@ -214,14 +234,17 @@ impl MovableTreeAlgorithm for EvanTree {
                             .unwrap()
                             .edges
                             .values()
-                            .map(|c| *c as i64)
+                            .map(|c| c.counter as i64)
                             .max()
                             .unwrap_or(-1);
-                        self.nodes
-                            .get_mut(&child)
-                            .unwrap()
-                            .edges
-                            .insert(parent, (max_counter + 1) as u32);
+                        self.nodes.get_mut(&child).unwrap().edges.insert(
+                            parent,
+                            EdgeCounter {
+                                counter: (max_counter + 1) as u32,
+                                lamport: id.lamport,
+                                peer: id.peer,
+                            },
+                        );
                         ans.push(Op {
                             id,
                             op: TreeOp::Move {
@@ -235,11 +258,26 @@ impl MovableTreeAlgorithm for EvanTree {
                     ans
                 } else {
                     let child = target;
-                    self.nodes
-                        .get_mut(&child)
-                        .unwrap()
-                        .edges
-                        .insert(parent, counter);
+                    let edge = self.nodes.get_mut(&child).unwrap().edges.entry(parent);
+                    match edge {
+                        Entry::Occupied(mut entry) => {
+                            let old_counter = entry.get_mut();
+                            if old_counter.lamport < id.lamport
+                                || (old_counter.lamport == id.lamport && old_counter.peer < id.peer)
+                            {
+                                old_counter.counter = counter;
+                                old_counter.lamport = id.lamport;
+                                old_counter.peer = id.peer;
+                            }
+                        }
+                        Entry::Vacant(entry) => {
+                            entry.insert(EdgeCounter {
+                                counter,
+                                lamport: id.lamport,
+                                peer: id.peer,
+                            });
+                        }
+                    }
                     vec![]
                 }
             }

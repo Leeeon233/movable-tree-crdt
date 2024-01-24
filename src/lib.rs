@@ -162,7 +162,7 @@ pub trait MovableTreeAlgorithm {
 }
 
 pub struct MovableTree<T> {
-    algorithm: T,
+    pub algorithm: T,
     peer: u64,
     ops: HashMap<u64, Vec<Op>>,
     next_lamport: u32,
