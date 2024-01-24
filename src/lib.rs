@@ -1,7 +1,6 @@
-use std::{
-    collections::HashMap,
-    fmt::{Display, Formatter},
-};
+use std::fmt::{Display, Formatter};
+
+use fxhash::FxHashMap;
 pub mod evan;
 #[cfg(feature = "fuzz")]
 pub mod fuzz;
@@ -19,7 +18,7 @@ pub struct TreeNode {
 }
 
 impl TreeNode {
-    pub fn from_state(state: &HashMap<NodeID, Option<NodeID>>) -> TreeNode {
+    pub fn from_state(state: &FxHashMap<NodeID, Option<NodeID>>) -> TreeNode {
         let root_id = state
             .iter()
             .find_map(|(id, parent)| if parent.is_none() { Some(*id) } else { None })
@@ -28,7 +27,7 @@ impl TreeNode {
         TreeNode::build_tree(root_id, state)
     }
 
-    fn build_tree(node_id: NodeID, state: &HashMap<NodeID, Option<NodeID>>) -> TreeNode {
+    fn build_tree(node_id: NodeID, state: &FxHashMap<NodeID, Option<NodeID>>) -> TreeNode {
         let mut children = state
             .iter()
             .filter_map(|(id, parent)| {
@@ -164,7 +163,7 @@ pub trait MovableTreeAlgorithm {
 pub struct MovableTree<T> {
     pub algorithm: T,
     peer: u64,
-    ops: HashMap<u64, Vec<Op>>,
+    ops: FxHashMap<u64, Vec<Op>>,
     next_lamport: u32,
 }
 
@@ -172,7 +171,7 @@ impl<T: MovableTreeAlgorithm> MovableTree<T> {
     pub fn new(peer: u64) -> Self {
         MovableTree {
             algorithm: T::new(),
-            ops: HashMap::default(),
+            ops: FxHashMap::default(),
             peer,
             next_lamport: 0,
         }

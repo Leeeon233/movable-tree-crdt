@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use fxhash::FxHashMap;
 
 use crate::{MovableTreeAlgorithm, NodeID, Op, TreeNode, TreeOp, ID, ROOT_ID};
 
@@ -10,14 +10,14 @@ struct OpWrapper {
 
 #[derive(Debug)]
 pub struct MartinTree {
-    tree: HashMap<NodeID, Option<NodeID>>,
+    tree: FxHashMap<NodeID, Option<NodeID>>,
     sorted_ops: Vec<OpWrapper>,
     applied_end: usize,
 }
 
 impl Default for MartinTree {
     fn default() -> Self {
-        let mut tree = HashMap::new();
+        let mut tree = FxHashMap::default();
         tree.insert(ROOT_ID, None);
         Self {
             tree,
